@@ -2,15 +2,13 @@ import os
 
 from fastmcp import FastMCP
 from fastmcp.server.auth import RemoteAuthProvider
-from fastmcp.server.auth.providers.introspection import (
-    IntrospectionTokenVerifier,
-)
+from fastmcp.server.auth.providers.introspection import IntrospectionTokenVerifier
 from fastmcp.server.dependencies import get_access_token
 from pydantic import AnyHttpUrl
 
 
 # ============================================================
-# CONFIGURATION
+# PRODUCTION CONFIGURATION
 # ============================================================
 
 CLIENT_ID = os.getenv(
@@ -35,13 +33,11 @@ MCP_SERVER_PUBLIC_URL = os.getenv(
 
 
 # ============================================================
-# TOKEN VERIFIER
+# TOKEN VERIFICATION
 # ============================================================
 
 token_verifier = IntrospectionTokenVerifier(
-    introspection_url=(
-        f"{AUTH_SERVER_URL}/introspect"
-    ),
+    introspection_url=f"{AUTH_SERVER_URL}/introspect",
     client_id=CLIENT_ID,
     client_secret=CLIENT_SECRET,
     required_scopes=["products"],
@@ -54,11 +50,9 @@ token_verifier = IntrospectionTokenVerifier(
 
 auth = RemoteAuthProvider(
     token_verifier=token_verifier,
-
     authorization_servers=[
         AnyHttpUrl(AUTH_SERVER_URL)
     ],
-
     base_url=MCP_SERVER_PUBLIC_URL,
 )
 
@@ -74,51 +68,15 @@ mcp = FastMCP(
 
 
 # ============================================================
-# PRODUCTS
+# DEMO PRODUCTS
 # ============================================================
 
 products = [
-    {
-        "id": 1,
-        "name": "MacBook Pro",
-        "price": 150000,
-    },
-    {
-        "id": 2,
-        "name": "iPhone 17",
-        "price": 90000,
-    },
-    {
-        "id": 3,
-        "name": "AirPods Pro",
-        "price": 25000,
-    },
-    {
-        "id": 4,
-        "name": "iPad Air",
-        "price": 60000,
-    },
+    {"id": 1, "name": "MacBook Pro", "price": 150000},
+    {"id": 2, "name": "iPhone 17", "price": 90000},
+    {"id": 3, "name": "AirPods Pro", "price": 25000},
+    {"id": 4, "name": "iPad Air", "price": 60000},
 ]
-
-
-# ============================================================
-# TOOL: GET PRODUCTS
-# ============================================================
-
-@mcp.tool
-def get_products():
-
-    token = get_access_token()
-
-    if token is None:
-        return {
-            "error": "Not authenticated"
-        }
-
-    return {
-        "authenticated_user": token.claims.get("sub"),
-        "products": products,
-    }
 
 
 # ============================================================
@@ -127,7 +85,6 @@ def get_products():
 
 @mcp.tool
 def who_am_i():
-
     token = get_access_token()
 
     if token is None:
@@ -143,11 +100,29 @@ def who_am_i():
 
 
 # ============================================================
+# TOOL: GET PRODUCTS
+# ============================================================
+
+@mcp.tool
+def get_products():
+    token = get_access_token()
+
+    if token is None:
+        return {
+            "error": "Not authenticated"
+        }
+
+    return {
+        "authenticated_user": token.claims.get("sub"),
+        "products": products,
+    }
+
+
+# ============================================================
 # START SERVER
 # ============================================================
 
 if __name__ == "__main__":
-
     mcp.run(
         transport="http",
         host="0.0.0.0",
