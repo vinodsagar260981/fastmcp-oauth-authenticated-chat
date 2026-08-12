@@ -1,22 +1,45 @@
+import base64
+import os
+import secrets
+import time
+from hashlib import sha256
+from urllib.parse import urlencode
+
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-
-from hashlib import sha256
-from urllib.parse import urlencode
-import base64
-import secrets
-import time
 
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-USERNAME = "vinod"
-PASSWORD = "password123"
 
-CLIENT_ID = "demo-mcp-client"
-CLIENT_SECRET = "demo-mcp-secret"
+# ==================================================
+# CONFIGURATION
+# ==================================================
+
+USERNAME = os.getenv("DEMO_USERNAME", "vinod")
+PASSWORD = os.getenv("DEMO_PASSWORD", "password123")
+
+CLIENT_ID = os.getenv("MCP_CLIENT_ID", "demo-mcp-client")
+CLIENT_SECRET = os.getenv("MCP_CLIENT_SECRET", "demo-mcp-secret")
+
+AUTH_SERVER_URL = os.getenv(
+    "AUTH_SERVER_URL",
+    "http://auth.localhost:8000",
+).rstrip("/")
+
+CHAT_PUBLIC_URL = os.getenv(
+    "CHAT_PUBLIC_URL",
+    "http://localhost:9000",
+).rstrip("/")
+
+ALLOWED_REDIRECT_URI = f"{CHAT_PUBLIC_URL}/oauth/callback"
+
+
+# ==================================================
+# DEMO PRODUCTS
+# ==================================================
 
 products = [
     {"id": 1, "name": "MacBook Pro", "price": 150000},
@@ -25,9 +48,33 @@ products = [
     {"id": 4, "name": "iPad Air", "price": 60000},
 ]
 
+
+# ==================================================
+# IN-MEMORY TOKEN STORAGE
+# ==================================================
+
 authorization_codes = {}
 access_tokens = {}
 revoked_tokens = set()
+
+
+# ==================================================
+# HEALTH
+# ==================================================
+
+@app.get("/")
+async def root():
+    return {
+        "service": "FastMCP OAuth Authentication Server",
+        "status": "ok",
+    }
+
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy",
+    }
 
 
 # ==================================================
@@ -39,7 +86,10 @@ async def login_page(request: Request):
     return templates.TemplateResponse(
         request=request,
         name="login.html",
-        context={"request": request, "error": None},
+        context={
+            "request": request,
+            "error": None,
+        },
     )
 
 
@@ -60,8 +110,19 @@ async def login(
             status_code=401,
         )
 
-    response = RedirectResponse("/home", status_code=303)
-    response.set_cookie("demo_user", username, httponly=True)
+    response = RedirectResponse(
+        "/home",
+        status_code=303,
+    )
+
+    response.set_cookie(
+        "demo_user",
+        username,
+        httponly=True,
+        secure=bool(os.getenv("RENDER")),
+        samesite="lax",
+    )
+
     return response
 
 
@@ -70,7 +131,10 @@ async def home(request: Request):
     user = request.cookies.get("demo_user")
 
     if user != USERNAME:
-        return RedirectResponse("/login", status_code=303)
+        return RedirectResponse(
+            "/login",
+            status_code=303,
+        )
 
     return templates.TemplateResponse(
         request=request,
@@ -90,10 +154,10 @@ async def home(request: Request):
 @app.get("/.well-known/oauth-authorization-server")
 async def oauth_metadata():
     return {
-        "issuer": "http://auth.localhost:8000",
-        "authorization_endpoint": "http://auth.localhost:8000/authorize",
-        "token_endpoint": "http://auth.localhost:8000/token",
-        "registration_endpoint": "http://auth.localhost:8000/register",
+        "issuer": AUTH_SERVER_URL,
+        "authorization_endpoint": f"{AUTH_SERVER_URL}/authorize",
+        "token_endpoint": f"{AUTH_SERVER_URL}/token",
+        "registration_endpoint": f"{AUTH_SERVER_URL}/register",
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code"],
         "code_challenge_methods_supported": ["S256"],
@@ -102,7 +166,7 @@ async def oauth_metadata():
 
 
 # ==================================================
-# PRE-REGISTERED CLIENT
+# CLIENT REGISTRATION
 # ==================================================
 
 @app.post("/register")
@@ -112,7 +176,10 @@ async def register(request: Request):
     return {
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
-        "client_name": data.get("client_name", "Demo MCP Client"),
+        "client_name": data.get(
+            "client_name",
+            "FastMCP OAuth Chat",
+        ),
     }
 
 
@@ -132,13 +199,28 @@ async def authorize(
     scope: str = "products",
 ):
     if client_id != CLIENT_ID:
-        return HTMLResponse("Unknown client", status_code=400)
+        return HTMLResponse(
+            "Unknown client",
+            status_code=400,
+        )
 
     if response_type != "code":
-        return HTMLResponse("Unsupported response type", status_code=400)
+        return HTMLResponse(
+            "Unsupported response type",
+            status_code=400,
+        )
 
     if code_challenge_method != "S256":
-        return HTMLResponse("Unsupported PKCE method", status_code=400)
+        return HTMLResponse(
+            "Unsupported PKCE method",
+            status_code=400,
+        )
+
+    if redirect_uri != ALLOWED_REDIRECT_URI:
+        return HTMLResponse(
+            "Invalid redirect_uri",
+            status_code=400,
+        )
 
     return templates.TemplateResponse(
         request=request,
@@ -171,6 +253,30 @@ async def authorize_login(
     code_challenge_method: str = Form(...),
     scope: str = Form("products"),
 ):
+    if client_id != CLIENT_ID:
+        return HTMLResponse(
+            "Unknown client",
+            status_code=400,
+        )
+
+    if redirect_uri != ALLOWED_REDIRECT_URI:
+        return HTMLResponse(
+            "Invalid redirect_uri",
+            status_code=400,
+        )
+
+    if response_type != "code":
+        return HTMLResponse(
+            "Unsupported response type",
+            status_code=400,
+        )
+
+    if code_challenge_method != "S256":
+        return HTMLResponse(
+            "Unsupported PKCE method",
+            status_code=400,
+        )
+
     if username != USERNAME or password != PASSWORD:
         return templates.TemplateResponse(
             request=request,
@@ -202,12 +308,17 @@ async def authorize_login(
         "expires_at": time.time() + 300,
     }
 
-    redirect_url = redirect_uri + "?" + urlencode({
-        "code": code,
-        "state": state,
-    })
+    redirect_url = redirect_uri + "?" + urlencode(
+        {
+            "code": code,
+            "state": state,
+        }
+    )
 
-    return RedirectResponse(redirect_url, status_code=303)
+    return RedirectResponse(
+        redirect_url,
+        status_code=303,
+    )
 
 
 # ==================================================
@@ -223,29 +334,66 @@ async def token(
     code_verifier: str = Form(...),
 ):
     if grant_type != "authorization_code":
-        return JSONResponse({"error": "unsupported_grant_type"}, status_code=400)
+        return JSONResponse(
+            {
+                "error": "unsupported_grant_type",
+            },
+            status_code=400,
+        )
 
     oauth_code = authorization_codes.get(code)
 
     if not oauth_code:
-        return JSONResponse({"error": "invalid_grant"}, status_code=400)
+        return JSONResponse(
+            {
+                "error": "invalid_grant",
+            },
+            status_code=400,
+        )
 
     if time.time() > oauth_code["expires_at"]:
         authorization_codes.pop(code, None)
-        return JSONResponse({"error": "invalid_grant"}, status_code=400)
+
+        return JSONResponse(
+            {
+                "error": "invalid_grant",
+            },
+            status_code=400,
+        )
 
     if client_id != oauth_code["client_id"]:
-        return JSONResponse({"error": "invalid_client"}, status_code=401)
+        return JSONResponse(
+            {
+                "error": "invalid_client",
+            },
+            status_code=401,
+        )
 
     if redirect_uri != oauth_code["redirect_uri"]:
-        return JSONResponse({"error": "invalid_grant"}, status_code=400)
+        return JSONResponse(
+            {
+                "error": "invalid_grant",
+            },
+            status_code=400,
+        )
 
-    calculated_challenge = base64.urlsafe_b64encode(
-        sha256(code_verifier.encode()).digest()
-    ).rstrip(b"=").decode()
+    calculated_challenge = (
+        base64.urlsafe_b64encode(
+            sha256(
+                code_verifier.encode()
+            ).digest()
+        )
+        .rstrip(b"=")
+        .decode()
+    )
 
     if calculated_challenge != oauth_code["code_challenge"]:
-        return JSONResponse({"error": "invalid_grant"}, status_code=400)
+        return JSONResponse(
+            {
+                "error": "invalid_grant",
+            },
+            status_code=400,
+        )
 
     authorization_codes.pop(code, None)
 
@@ -272,29 +420,47 @@ async def token(
 
 @app.post("/introspect")
 async def introspect(request: Request):
-    authorization = request.headers.get("Authorization", "")
+    authorization = request.headers.get(
+        "Authorization",
+        "",
+    )
 
-    expected = "Basic " + base64.b64encode(
-        f"{CLIENT_ID}:{CLIENT_SECRET}".encode()
-    ).decode()
+    expected = (
+        "Basic "
+        + base64.b64encode(
+            f"{CLIENT_ID}:{CLIENT_SECRET}".encode()
+        ).decode()
+    )
 
     if authorization != expected:
-        return {"active": False}
+        return {
+            "active": False,
+        }
 
     form = await request.form()
-    token = form.get("token")
+    token_value = form.get("token")
 
-    if token in revoked_tokens:
-        return {"active": False}
+    if token_value in revoked_tokens:
+        return {
+            "active": False,
+        }
 
-    token_data = access_tokens.get(token)
+    token_data = access_tokens.get(token_value)
 
     if not token_data:
-        return {"active": False}
+        return {
+            "active": False,
+        }
 
     if time.time() > token_data["expires_at"]:
-        access_tokens.pop(token, None)
-        return {"active": False}
+        access_tokens.pop(
+            token_value,
+            None,
+        )
+
+        return {
+            "active": False,
+        }
 
     return {
         "active": True,
@@ -306,23 +472,33 @@ async def introspect(request: Request):
 
 
 # ==================================================
-# LOGOUT
+# LOGOUT / TOKEN REVOCATION
 # ==================================================
 
 @app.get("/logout")
 async def logout():
-    response = RedirectResponse("/login", status_code=303)
+    response = RedirectResponse(
+        "/login",
+        status_code=303,
+    )
+
     response.delete_cookie("demo_user")
+
     return response
 
 
 @app.post("/oauth/logout")
 async def oauth_logout(request: Request):
     form = await request.form()
-    token = form.get("token")
+    token_value = form.get("token")
 
-    if token:
-        revoked_tokens.add(token)
-        access_tokens.pop(token, None)
+    if token_value:
+        revoked_tokens.add(token_value)
+        access_tokens.pop(
+            token_value,
+            None,
+        )
 
-    return {"success": True}
+    return {
+        "success": True,
+    }

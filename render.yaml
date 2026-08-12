@@ -1,8 +1,8 @@
 services:
 
-  # ==========================================
+  # ==================================================
   # AUTH SERVER
-  # ==========================================
+  # ==================================================
 
   - type: web
     name: fastmcp-auth
@@ -11,35 +11,53 @@ services:
 
     dockerfilePath: ./Dockerfile
 
-    dockerCommand: uvicorn auth_server:app --host 0.0.0.0 --port 8000
+    dockerCommand: >
+      sh -c "uvicorn auth_server:app
+      --host 0.0.0.0
+      --port ${PORT:-10000}"
 
     envVars:
+
+      - key: DEMO_USERNAME
+        value: vinod
+
+      - key: DEMO_PASSWORD
+        value: password123
+
       - key: MCP_CLIENT_ID
         value: demo-mcp-client
 
       - key: MCP_CLIENT_SECRET
         sync: false
 
-
-  # ==========================================
-  # MCP SERVER
-  # ==========================================
-
-  - type: pserv
-    name: fastmcp-mcp
-    runtime: docker
-    plan: starter
-
-    dockerfilePath: ./Dockerfile
-
-    dockerCommand: python mcp_server.py
-
-    envVars:
       - key: AUTH_SERVER_URL
         fromService:
           type: web
           name: fastmcp-auth
-          property: host
+          envVarKey: RENDER_EXTERNAL_URL
+
+      - key: CHAT_PUBLIC_URL
+        fromService:
+          type: web
+          name: fastmcp-chat
+          envVarKey: RENDER_EXTERNAL_URL
+
+
+  # ==================================================
+  # MCP SERVER
+  # ==================================================
+
+  - type: web
+    name: fastmcp-mcp
+    runtime: docker
+    plan: free
+
+    dockerfilePath: ./Dockerfile
+
+    dockerCommand: >
+      sh -c "python mcp_server.py"
+
+    envVars:
 
       - key: MCP_CLIENT_ID
         value: demo-mcp-client
@@ -47,10 +65,22 @@ services:
       - key: MCP_CLIENT_SECRET
         sync: false
 
+      - key: AUTH_SERVER_URL
+        fromService:
+          type: web
+          name: fastmcp-auth
+          envVarKey: RENDER_EXTERNAL_URL
 
-  # ==========================================
+      - key: MCP_PUBLIC_URL
+        fromService:
+          type: web
+          name: fastmcp-mcp
+          envVarKey: RENDER_EXTERNAL_URL
+
+
+  # ==================================================
   # CHAT APPLICATION
-  # ==========================================
+  # ==================================================
 
   - type: web
     name: fastmcp-chat
@@ -59,11 +89,33 @@ services:
 
     dockerfilePath: ./Dockerfile
 
-    dockerCommand: uvicorn chat_app:app --host 0.0.0.0 --port 10000
+    dockerCommand: >
+      sh -c "uvicorn chat_app:app
+      --host 0.0.0.0
+      --port ${PORT:-10000}"
 
     envVars:
+
       - key: MCP_CLIENT_ID
         value: demo-mcp-client
 
       - key: MCP_CLIENT_SECRET
         sync: false
+
+      - key: AUTH_SERVER_URL
+        fromService:
+          type: web
+          name: fastmcp-auth
+          envVarKey: RENDER_EXTERNAL_URL
+
+      - key: MCP_SERVER_URL
+        fromService:
+          type: web
+          name: fastmcp-mcp
+          envVarKey: RENDER_EXTERNAL_URL
+
+      - key: CHAT_PUBLIC_URL
+        fromService:
+          type: web
+          name: fastmcp-chat
+          envVarKey: RENDER_EXTERNAL_URL
