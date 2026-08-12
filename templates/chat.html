@@ -1,61 +1,179 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MCP Product Assistant</title>
+
     <style>
-        * { box-sizing:border-box; }
-        body { margin:0; font-family:Arial; background:#f5f5f5; }
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f5f5;
+        }
+
         .header {
-            height:60px; background:#222; color:white;
-            display:flex; align-items:center; justify-content:space-between;
-            padding:0 25px;
+            height: 60px;
+            background: #222;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 25px;
         }
+
+        .header h2 {
+            margin: 0;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status {
+            font-size: 14px;
+        }
+
         .chat {
-            width:800px; max-width:95%; height:calc(100vh - 100px);
-            margin:20px auto; background:white; border-radius:10px;
-            display:flex; flex-direction:column; box-shadow:0 2px 10px #ddd;
+            width: 900px;
+            max-width: 95%;
+            height: calc(100vh - 100px);
+            margin: 20px auto;
+            background: white;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 2px 10px #ddd;
         }
-        .messages { flex:1; padding:20px; overflow-y:auto; }
-        .message { margin-bottom:15px; }
-        .user { text-align:right; }
-        .user span { background:#222; color:white; padding:10px 15px; border-radius:15px; display:inline-block; }
-        .assistant span { background:#eee; color:#222; padding:10px 15px; border-radius:15px; display:inline-block; }
-        .product { border:1px solid #ddd; padding:10px; margin:8px 0; border-radius:8px; }
-        .input { display:flex; padding:15px; border-top:1px solid #ddd; }
-        .input input { flex:1; padding:12px; font-size:16px; }
-        button { margin-left:10px; padding:12px 20px; border:0; border-radius:6px; background:#222; color:white; cursor:pointer; }
-        button:disabled { background:#aaa; }
-        #logoutButton { display:none; }
+
+        .messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin-bottom: 15px;
+        }
+
+        .user {
+            text-align: right;
+        }
+
+        .user span {
+            background: #222;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 15px;
+            display: inline-block;
+            max-width: 80%;
+        }
+
+        .assistant span {
+            background: #eee;
+            color: #222;
+            padding: 10px 15px;
+            border-radius: 15px;
+            display: inline-block;
+            max-width: 80%;
+        }
+
+        .product {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 8px;
+        }
+
+        .input {
+            display: flex;
+            padding: 15px;
+            border-top: 1px solid #ddd;
+        }
+
+        .input input {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+        }
+
+        button {
+            margin-left: 10px;
+            padding: 12px 20px;
+            border: 0;
+            border-radius: 6px;
+            background: #222;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            background: #aaa;
+            cursor: not-allowed;
+        }
+
+        #logoutButton {
+            display: none;
+        }
+
+        #loginButton {
+            display: inline-block;
+        }
     </style>
 </head>
+
 <body>
 
 <div class="header">
     <h2>MCP Product Assistant</h2>
-    <div>
-        <span id="status">Not authenticated</span>
+
+    <div class="header-right">
+        <span class="status" id="status">Not authenticated</span>
+        <button id="loginButton" onclick="login()">Login</button>
         <button id="logoutButton" onclick="logout()">Logout</button>
     </div>
 </div>
 
 <div class="chat">
+
     <div class="messages" id="messages">
         <div class="message assistant">
-            <span>Please authenticate before starting the chat.</span>
+            <span id="welcomeMessage">
+                Please login before starting the chat.
+            </span>
         </div>
     </div>
 
     <div class="input">
-        <input id="messageInput" placeholder="Ask about products..." disabled>
-        <button id="sendButton" onclick="sendMessage()" disabled>Send</button>
+        <input
+            id="messageInput"
+            placeholder="Ask about products..."
+            disabled
+            onkeydown="handleKeyDown(event)"
+        >
+
+        <button
+            id="sendButton"
+            onclick="sendMessage()"
+            disabled
+        >
+            Send
+        </button>
     </div>
+
 </div>
 
 <script>
 let authenticated = false;
 
+
 function addMessage(type, text) {
     const messages = document.getElementById("messages");
+
     const div = document.createElement("div");
     div.className = "message " + type;
 
@@ -64,8 +182,10 @@ function addMessage(type, text) {
 
     div.appendChild(span);
     messages.appendChild(div);
+
     messages.scrollTop = messages.scrollHeight;
 }
+
 
 function setAuthenticated(username) {
     authenticated = true;
@@ -73,45 +193,64 @@ function setAuthenticated(username) {
     document.getElementById("status").innerText =
         "Authenticated as " + username;
 
+    document.getElementById("loginButton").style.display = "none";
+    document.getElementById("logoutButton").style.display = "inline-block";
+
     document.getElementById("messageInput").disabled = false;
     document.getElementById("sendButton").disabled = false;
-    document.getElementById("logoutButton").style.display = "inline-block";
+
+    document.getElementById("welcomeMessage").innerText =
+        "Authentication successful. You can now ask about products.";
+
+    document.getElementById("messageInput").focus();
 }
 
-async function connectMCP() {
-    document.getElementById("status").innerText = "Authenticating...";
 
+async function checkAuthentication() {
     try {
-        const response = await fetch("/connect");
+        const response = await fetch("/auth/status", {
+            credentials: "same-origin"
+        });
 
         if (!response.ok) {
-            throw new Error("Authentication failed");
+            throw new Error("Authentication status request failed");
         }
 
         const data = await response.json();
 
-        setAuthenticated(data.user.username);
-
-        addMessage(
-            "assistant",
-            "Authentication successful. You can now ask me about products."
-        );
-
+        if (data.authenticated) {
+            setAuthenticated(data.user.username);
+        }
     } catch (error) {
-        console.log(error);
-
-        document.getElementById("status").innerText =
-            "Authentication required";
+        console.error(error);
     }
 }
 
+
+function login() {
+    window.location.href = "/login";
+}
+
+
+function handleKeyDown(event) {
+    if (event.key === "Enter") {
+        sendMessage();
+    }
+}
+
+
 async function sendMessage() {
-    if (!authenticated) return;
+    if (!authenticated) {
+        login();
+        return;
+    }
 
     const input = document.getElementById("messageInput");
     const message = input.value.trim();
 
-    if (!message) return;
+    if (!message) {
+        return;
+    }
 
     addMessage("user", message);
     input.value = "";
@@ -126,20 +265,37 @@ async function sendMessage() {
         );
 
         try {
-            const response = await fetch("/products");
+            const response = await fetch("/products", {
+                credentials: "same-origin"
+            });
+
+            if (response.status === 401) {
+                authenticated = false;
+                addMessage(
+                    "assistant",
+                    "Your session has expired. Please login again."
+                );
+                document.getElementById("messageInput").disabled = true;
+                document.getElementById("sendButton").disabled = true;
+                document.getElementById("loginButton").style.display = "inline-block";
+                document.getElementById("logoutButton").style.display = "none";
+                return;
+            }
 
             if (!response.ok) {
-                throw new Error("Unable to get products");
+                const errorText = await response.text();
+                throw new Error(errorText);
             }
 
             const data = await response.json();
-
             showProducts(data);
 
         } catch (error) {
+            console.error(error);
+
             addMessage(
                 "assistant",
-                "Authentication is required. Please refresh and authenticate again."
+                "MCP request failed. Check the Render logs."
             );
         }
 
@@ -151,8 +307,17 @@ async function sendMessage() {
     }
 }
 
+
 function showProducts(data) {
     let html = "Here are the products:<br><br>";
+
+    if (!data.products) {
+        addMessage(
+            "assistant",
+            "The MCP server did not return a product list."
+        );
+        return;
+    }
 
     for (const product of data.products) {
         html += `
@@ -167,25 +332,33 @@ function showProducts(data) {
     addMessage("assistant", html);
 }
 
+
 async function logout() {
-    await fetch("/logout");
+    await fetch("/logout", {
+        credentials: "same-origin"
+    });
 
     authenticated = false;
 
-    document.getElementById("status").innerText = "Not authenticated";
+    document.getElementById("status").innerText =
+        "Not authenticated";
+
     document.getElementById("messageInput").disabled = true;
     document.getElementById("sendButton").disabled = true;
+
+    document.getElementById("loginButton").style.display = "inline-block";
     document.getElementById("logoutButton").style.display = "none";
 
     document.getElementById("messages").innerHTML = "";
 
     addMessage(
         "assistant",
-        "You have been logged out. Click Send after authenticating again."
+        "You have been logged out. Click Login to authenticate again."
     );
 }
 
-connectMCP();
+
+checkAuthentication();
 </script>
 
 </body>
