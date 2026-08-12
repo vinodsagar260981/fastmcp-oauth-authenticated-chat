@@ -15,8 +15,12 @@ templates = Jinja2Templates(directory="templates")
 
 AUTH_SERVER_PUBLIC_URL = os.getenv(
     "AUTH_SERVER_PUBLIC_URL",
-    "http://auth.localhost:8000"
+    "https://fastmcp-oauth-authenticated-chat.onrender.com",
 ).rstrip("/")
+
+ALLOWED_REDIRECT_URI = (
+    "https://fastmcp-chat.onrender.com/oauth/callback"
+)
 
 # ==================================================
 # CONFIGURATION
@@ -203,28 +207,17 @@ async def authorize(
     scope: str = "products",
 ):
     if client_id != CLIENT_ID:
-        return HTMLResponse(
-            "Unknown client",
-            status_code=400,
-        )
-
-    if response_type != "code":
-        return HTMLResponse(
-            "Unsupported response type",
-            status_code=400,
-        )
-
-    if code_challenge_method != "S256":
-        return HTMLResponse(
-            "Unsupported PKCE method",
-            status_code=400,
-        )
+        return HTMLResponse("Unknown client", status_code=400)
 
     if redirect_uri != ALLOWED_REDIRECT_URI:
-        return HTMLResponse(
-            "Invalid redirect_uri",
-            status_code=400,
-        )
+        return HTMLResponse("Invalid redirect_uri", status_code=400)
+
+    if response_type != "code":
+        return HTMLResponse("Unsupported response type", status_code=400)
+
+    if code_challenge_method != "S256":
+        return HTMLResponse("Unsupported PKCE method", status_code=400)
+
 
     return templates.TemplateResponse(
         request=request,
