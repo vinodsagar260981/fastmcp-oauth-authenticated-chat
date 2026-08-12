@@ -1,7 +1,8 @@
-import base64
 import os
+import base64
 import secrets
 import time
+
 from hashlib import sha256
 from urllib.parse import urlencode
 
@@ -13,41 +14,38 @@ from fastapi.templating import Jinja2Templates
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-AUTH_SERVER_PUBLIC_URL = os.getenv(
-    "AUTH_SERVER_PUBLIC_URL",
-    "https://fastmcp-oauth-authenticated-chat.onrender.com",
-).rstrip("/")
 
-ALLOWED_REDIRECT_URI = (
-    "https://fastmcp-chat.onrender.com/oauth/callback"
-)
-
-# ==================================================
+# ============================================================
 # CONFIGURATION
-# ==================================================
+# ============================================================
 
 USERNAME = os.getenv("DEMO_USERNAME", "vinod")
 PASSWORD = os.getenv("DEMO_PASSWORD", "password123")
 
-CLIENT_ID = os.getenv("MCP_CLIENT_ID", "demo-mcp-client")
-CLIENT_SECRET = os.getenv("MCP_CLIENT_SECRET", "demo-mcp-secret")
+CLIENT_ID = os.getenv(
+    "MCP_CLIENT_ID",
+    "demo-mcp-client",
+)
 
-AUTH_SERVER_URL = os.getenv(
-    "AUTH_SERVER_URL",
-    "http://auth.localhost:8000",
+CLIENT_SECRET = os.getenv(
+    "MCP_CLIENT_SECRET",
+    "demo-mcp-secret",
+)
+
+AUTH_SERVER_PUBLIC_URL = os.getenv(
+    "AUTH_SERVER_PUBLIC_URL",
+    "http://localhost:8000",
 ).rstrip("/")
 
-CHAT_PUBLIC_URL = os.getenv(
-    "CHAT_PUBLIC_URL",
-    "http://localhost:9000",
+ALLOWED_REDIRECT_URI = os.getenv(
+    "ALLOWED_REDIRECT_URI",
+    "http://localhost:8000/oauth/callback",
 ).rstrip("/")
 
-ALLOWED_REDIRECT_URI = f"{CHAT_PUBLIC_URL}/oauth/callback"
 
-
-# ==================================================
-# DEMO PRODUCTS
-# ==================================================
+# ============================================================
+# DEMO DATA
+# ============================================================
 
 products = [
     {"id": 1, "name": "MacBook Pro", "price": 150000},
@@ -57,37 +55,18 @@ products = [
 ]
 
 
-# ==================================================
-# IN-MEMORY TOKEN STORAGE
-# ==================================================
+# ============================================================
+# IN-MEMORY STORAGE
+# ============================================================
 
 authorization_codes = {}
 access_tokens = {}
 revoked_tokens = set()
 
 
-# ==================================================
-# HEALTH
-# ==================================================
-
-@app.get("/")
-async def root():
-    return {
-        "service": "FastMCP OAuth Authentication Server",
-        "status": "ok",
-    }
-
-
-@app.get("/health")
-async def health():
-    return {
-        "status": "healthy",
-    }
-
-
-# ==================================================
+# ============================================================
 # NORMAL WEBSITE LOGIN
-# ==================================================
+# ============================================================
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
@@ -127,7 +106,7 @@ async def login(
         "demo_user",
         username,
         httponly=True,
-        secure=bool(os.getenv("RENDER")),
+        secure=True,
         samesite="lax",
     )
 
@@ -155,30 +134,53 @@ async def home(request: Request):
     )
 
 
-# ==================================================
+# ============================================================
 # OAUTH DISCOVERY
-# ==================================================
+# ============================================================
 
 @app.get("/.well-known/oauth-authorization-server")
 async def oauth_metadata():
+
     return {
         "issuer": AUTH_SERVER_PUBLIC_URL,
-        "authorization_endpoint": f"{AUTH_SERVER_PUBLIC_URL}/authorize",
-        "token_endpoint": f"{AUTH_SERVER_PUBLIC_URL}/token",
-        "registration_endpoint": f"{AUTH_SERVER_PUBLIC_URL}/register",
-        "response_types_supported": ["code"],
-        "grant_types_supported": ["authorization_code"],
-        "code_challenge_methods_supported": ["S256"],
-        "scopes_supported": ["products"],
+
+        "authorization_endpoint": (
+            f"{AUTH_SERVER_PUBLIC_URL}/authorize"
+        ),
+
+        "token_endpoint": (
+            f"{AUTH_SERVER_PUBLIC_URL}/token"
+        ),
+
+        "registration_endpoint": (
+            f"{AUTH_SERVER_PUBLIC_URL}/register"
+        ),
+
+        "response_types_supported": [
+            "code"
+        ],
+
+        "grant_types_supported": [
+            "authorization_code"
+        ],
+
+        "code_challenge_methods_supported": [
+            "S256"
+        ],
+
+        "scopes_supported": [
+            "products"
+        ],
     }
 
 
-# ==================================================
+# ============================================================
 # CLIENT REGISTRATION
-# ==================================================
+# ============================================================
 
 @app.post("/register")
 async def register(request: Request):
+
     data = await request.json()
 
     return {
@@ -186,14 +188,14 @@ async def register(request: Request):
         "client_secret": CLIENT_SECRET,
         "client_name": data.get(
             "client_name",
-            "FastMCP OAuth Chat",
+            "Demo MCP Client",
         ),
     }
 
 
-# ==================================================
+# ============================================================
 # OAUTH AUTHORIZE
-# ==================================================
+# ============================================================
 
 @app.get("/authorize", response_class=HTMLResponse)
 async def authorize(
@@ -206,18 +208,42 @@ async def authorize(
     code_challenge_method: str,
     scope: str = "products",
 ):
-    if client_id != CLIENT_ID:
-        return HTMLResponse("Unknown client", status_code=400)
 
-    if redirect_uri != ALLOWED_REDIRECT_URI:
-        return HTMLResponse("Invalid redirect_uri", status_code=400)
+    # --------------------------------------------------------
+    # Client validation
+    # --------------------------------------------------------
+
+    if client_id != CLIENT_ID:
+        return HTMLResponse(
+            "Unknown client",
+            status_code=400,
+        )
+
+    # --------------------------------------------------------
+    # Redirect URI validation
+    # --------------------------------------------------------
+
+    if redirect_uri.rstrip("/") != ALLOWED_REDIRECT_URI:
+        return HTMLResponse(
+            "Invalid redirect_uri",
+            status_code=400,
+        )
+
+    # --------------------------------------------------------
+    # OAuth validation
+    # --------------------------------------------------------
 
     if response_type != "code":
-        return HTMLResponse("Unsupported response type", status_code=400)
+        return HTMLResponse(
+            "Unsupported response type",
+            status_code=400,
+        )
 
     if code_challenge_method != "S256":
-        return HTMLResponse("Unsupported PKCE method", status_code=400)
-
+        return HTMLResponse(
+            "Unsupported PKCE method",
+            status_code=400,
+        )
 
     return templates.TemplateResponse(
         request=request,
@@ -237,6 +263,10 @@ async def authorize(
     )
 
 
+# ============================================================
+# OAUTH LOGIN
+# ============================================================
+
 @app.post("/authorize")
 async def authorize_login(
     request: Request,
@@ -250,31 +280,33 @@ async def authorize_login(
     code_challenge_method: str = Form(...),
     scope: str = Form("products"),
 ):
+
+    # --------------------------------------------------------
+    # Validate client
+    # --------------------------------------------------------
+
     if client_id != CLIENT_ID:
         return HTMLResponse(
             "Unknown client",
             status_code=400,
         )
 
-    if redirect_uri != ALLOWED_REDIRECT_URI:
+    # --------------------------------------------------------
+    # Validate redirect URI
+    # --------------------------------------------------------
+
+    if redirect_uri.rstrip("/") != ALLOWED_REDIRECT_URI:
         return HTMLResponse(
             "Invalid redirect_uri",
             status_code=400,
         )
 
-    if response_type != "code":
-        return HTMLResponse(
-            "Unsupported response type",
-            status_code=400,
-        )
-
-    if code_challenge_method != "S256":
-        return HTMLResponse(
-            "Unsupported PKCE method",
-            status_code=400,
-        )
+    # --------------------------------------------------------
+    # Validate credentials
+    # --------------------------------------------------------
 
     if username != USERNAME or password != PASSWORD:
+
         return templates.TemplateResponse(
             request=request,
             name="login.html",
@@ -293,6 +325,10 @@ async def authorize_login(
             status_code=401,
         )
 
+    # --------------------------------------------------------
+    # Create authorization code
+    # --------------------------------------------------------
+
     code = secrets.token_urlsafe(32)
 
     authorization_codes[code] = {
@@ -305,11 +341,19 @@ async def authorize_login(
         "expires_at": time.time() + 300,
     }
 
-    redirect_url = redirect_uri + "?" + urlencode(
-        {
-            "code": code,
-            "state": state,
-        }
+    # --------------------------------------------------------
+    # Redirect back to Chat application
+    # --------------------------------------------------------
+
+    redirect_url = (
+        redirect_uri
+        + "?"
+        + urlencode(
+            {
+                "code": code,
+                "state": state,
+            }
+        )
     )
 
     return RedirectResponse(
@@ -318,9 +362,9 @@ async def authorize_login(
     )
 
 
-# ==================================================
-# TOKEN
-# ==================================================
+# ============================================================
+# TOKEN ENDPOINT
+# ============================================================
 
 @app.post("/token")
 async def token(
@@ -330,11 +374,10 @@ async def token(
     client_id: str = Form(...),
     code_verifier: str = Form(...),
 ):
+
     if grant_type != "authorization_code":
         return JSONResponse(
-            {
-                "error": "unsupported_grant_type",
-            },
+            {"error": "unsupported_grant_type"},
             status_code=400,
         )
 
@@ -342,35 +385,28 @@ async def token(
 
     if not oauth_code:
         return JSONResponse(
-            {
-                "error": "invalid_grant",
-            },
+            {"error": "invalid_grant"},
             status_code=400,
         )
 
     if time.time() > oauth_code["expires_at"]:
+
         authorization_codes.pop(code, None)
 
         return JSONResponse(
-            {
-                "error": "invalid_grant",
-            },
+            {"error": "invalid_grant"},
             status_code=400,
         )
 
     if client_id != oauth_code["client_id"]:
         return JSONResponse(
-            {
-                "error": "invalid_client",
-            },
+            {"error": "invalid_client"},
             status_code=401,
         )
 
     if redirect_uri != oauth_code["redirect_uri"]:
         return JSONResponse(
-            {
-                "error": "invalid_grant",
-            },
+            {"error": "invalid_grant"},
             status_code=400,
         )
 
@@ -385,10 +421,9 @@ async def token(
     )
 
     if calculated_challenge != oauth_code["code_challenge"]:
+
         return JSONResponse(
-            {
-                "error": "invalid_grant",
-            },
+            {"error": "invalid_grant"},
             status_code=400,
         )
 
@@ -411,12 +446,13 @@ async def token(
     }
 
 
-# ==================================================
+# ============================================================
 # TOKEN INTROSPECTION
-# ==================================================
+# ============================================================
 
 @app.post("/introspect")
 async def introspect(request: Request):
+
     authorization = request.headers.get(
         "Authorization",
         "",
@@ -431,32 +467,31 @@ async def introspect(request: Request):
 
     if authorization != expected:
         return {
-            "active": False,
+            "active": False
         }
 
     form = await request.form()
-    token_value = form.get("token")
 
-    if token_value in revoked_tokens:
+    token = form.get("token")
+
+    if token in revoked_tokens:
         return {
-            "active": False,
+            "active": False
         }
 
-    token_data = access_tokens.get(token_value)
+    token_data = access_tokens.get(token)
 
     if not token_data:
         return {
-            "active": False,
+            "active": False
         }
 
     if time.time() > token_data["expires_at"]:
-        access_tokens.pop(
-            token_value,
-            None,
-        )
+
+        access_tokens.pop(token, None)
 
         return {
-            "active": False,
+            "active": False
         }
 
     return {
@@ -468,12 +503,13 @@ async def introspect(request: Request):
     }
 
 
-# ==================================================
-# LOGOUT / TOKEN REVOCATION
-# ==================================================
+# ============================================================
+# LOGOUT
+# ============================================================
 
 @app.get("/logout")
 async def logout():
+
     response = RedirectResponse(
         "/login",
         status_code=303,
@@ -486,16 +522,20 @@ async def logout():
 
 @app.post("/oauth/logout")
 async def oauth_logout(request: Request):
-    form = await request.form()
-    token_value = form.get("token")
 
-    if token_value:
-        revoked_tokens.add(token_value)
+    form = await request.form()
+
+    token = form.get("token")
+
+    if token:
+
+        revoked_tokens.add(token)
+
         access_tokens.pop(
-            token_value,
+            token,
             None,
         )
 
     return {
-        "success": True,
+        "success": True
     }

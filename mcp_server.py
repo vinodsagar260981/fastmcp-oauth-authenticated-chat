@@ -25,12 +25,12 @@ CLIENT_SECRET = os.getenv(
 
 AUTH_SERVER_URL = os.getenv(
     "AUTH_SERVER_URL",
-    "http://auth.localhost:8000",
+    "https://fastmcp-oauth-authenticated-chat.onrender.com",
 ).rstrip("/")
 
-MCP_PUBLIC_URL = os.getenv(
-    "MCP_PUBLIC_URL",
-    "http://mcp.localhost:8001",
+MCP_SERVER_PUBLIC_URL = os.getenv(
+    "MCP_SERVER_PUBLIC_URL",
+    "https://fastmcp-mcp-server-n8r6.onrender.com",
 ).rstrip("/")
 
 
@@ -39,7 +39,9 @@ MCP_PUBLIC_URL = os.getenv(
 # ============================================================
 
 token_verifier = IntrospectionTokenVerifier(
-    introspection_url=f"{AUTH_SERVER_URL}/introspect",
+    introspection_url=(
+        f"{AUTH_SERVER_URL}/introspect"
+    ),
     client_id=CLIENT_ID,
     client_secret=CLIENT_SECRET,
     required_scopes=["products"],
@@ -47,15 +49,17 @@ token_verifier = IntrospectionTokenVerifier(
 
 
 # ============================================================
-# MCP AUTH
+# REMOTE AUTH
 # ============================================================
 
 auth = RemoteAuthProvider(
     token_verifier=token_verifier,
+
     authorization_servers=[
-        AnyHttpUrl(AUTH_SERVER_URL),
+        AnyHttpUrl(AUTH_SERVER_URL)
     ],
-    base_url=MCP_PUBLIC_URL,
+
+    base_url=MCP_SERVER_PUBLIC_URL,
 )
 
 
@@ -98,16 +102,17 @@ products = [
 
 
 # ============================================================
-# MCP TOOLS
+# TOOL: GET PRODUCTS
 # ============================================================
 
 @mcp.tool
 def get_products():
+
     token = get_access_token()
 
     if token is None:
         return {
-            "error": "Not authenticated",
+            "error": "Not authenticated"
         }
 
     return {
@@ -116,13 +121,18 @@ def get_products():
     }
 
 
+# ============================================================
+# TOOL: WHO AM I
+# ============================================================
+
 @mcp.tool
 def who_am_i():
+
     token = get_access_token()
 
     if token is None:
         return {
-            "error": "Not authenticated",
+            "error": "Not authenticated"
         }
 
     return {
@@ -137,12 +147,9 @@ def who_am_i():
 # ============================================================
 
 if __name__ == "__main__":
-    port = int(
-        os.getenv("PORT", "8001")
-    )
 
     mcp.run(
         transport="http",
         host="0.0.0.0",
-        port=port,
+        port=8001,
     )
