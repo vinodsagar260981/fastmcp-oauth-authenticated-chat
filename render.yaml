@@ -1,0 +1,69 @@
+services:
+
+  # ==========================================
+  # AUTH SERVER
+  # ==========================================
+
+  - type: web
+    name: fastmcp-auth
+    runtime: docker
+    plan: free
+
+    dockerfilePath: ./Dockerfile
+
+    dockerCommand: uvicorn auth_server:app --host 0.0.0.0 --port 8000
+
+    envVars:
+      - key: MCP_CLIENT_ID
+        value: demo-mcp-client
+
+      - key: MCP_CLIENT_SECRET
+        sync: false
+
+
+  # ==========================================
+  # MCP SERVER
+  # ==========================================
+
+  - type: pserv
+    name: fastmcp-mcp
+    runtime: docker
+    plan: starter
+
+    dockerfilePath: ./Dockerfile
+
+    dockerCommand: python mcp_server.py
+
+    envVars:
+      - key: AUTH_SERVER_URL
+        fromService:
+          type: web
+          name: fastmcp-auth
+          property: host
+
+      - key: MCP_CLIENT_ID
+        value: demo-mcp-client
+
+      - key: MCP_CLIENT_SECRET
+        sync: false
+
+
+  # ==========================================
+  # CHAT APPLICATION
+  # ==========================================
+
+  - type: web
+    name: fastmcp-chat
+    runtime: docker
+    plan: free
+
+    dockerfilePath: ./Dockerfile
+
+    dockerCommand: uvicorn chat_app:app --host 0.0.0.0 --port 10000
+
+    envVars:
+      - key: MCP_CLIENT_ID
+        value: demo-mcp-client
+
+      - key: MCP_CLIENT_SECRET
+        sync: false

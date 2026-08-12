@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Products</title>
+    <style>
+        body { font-family:Arial; padding:35px; }
+        .products { display:flex; gap:20px; flex-wrap:wrap; }
+        .product { width:260px; border:1px solid #ddd; padding:25px; border-radius:10px; }
+    </style>
+</head>
+<body>
+    <h1>Welcome {{ username }}</h1>
+    <p>You are authenticated.</p>
+
+    <h2>Products</h2>
+
+    <div class="products">
+        {% for product in products %}
+        <div class="product">
+            <h2>{{ product.name }}</h2>
+            <p>Product ID: {{ product.id }}</p>
+            <p>₹{{ product.price }}</p>
+        </div>
+        {% endfor %}
+    </div>
+
+    <p><a href="/logout">Logout</a></p>
+</body>
+</html>
