@@ -13,6 +13,10 @@ from fastapi.templating import Jinja2Templates
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
+AUTH_SERVER_PUBLIC_URL = os.getenv(
+    "AUTH_SERVER_PUBLIC_URL",
+    "http://auth.localhost:8000"
+).rstrip("/")
 
 # ==================================================
 # CONFIGURATION
@@ -154,10 +158,10 @@ async def home(request: Request):
 @app.get("/.well-known/oauth-authorization-server")
 async def oauth_metadata():
     return {
-        "issuer": AUTH_SERVER_URL,
-        "authorization_endpoint": f"{AUTH_SERVER_URL}/authorize",
-        "token_endpoint": f"{AUTH_SERVER_URL}/token",
-        "registration_endpoint": f"{AUTH_SERVER_URL}/register",
+        "issuer": AUTH_SERVER_PUBLIC_URL,
+        "authorization_endpoint": f"{AUTH_SERVER_PUBLIC_URL}/authorize",
+        "token_endpoint": f"{AUTH_SERVER_PUBLIC_URL}/token",
+        "registration_endpoint": f"{AUTH_SERVER_PUBLIC_URL}/register",
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code"],
         "code_challenge_methods_supported": ["S256"],
